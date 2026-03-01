@@ -5,7 +5,7 @@
 'use strict';
 
 // ── Version ───────────────────────────────────
-const APP_VERSION = 'v2.3';
+const APP_VERSION = 'v2.4';
 
 // ── Storage keys ──────────────────────────────
 const RECORDS_KEY = 'wo_records';

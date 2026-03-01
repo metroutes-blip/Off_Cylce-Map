@@ -160,6 +160,15 @@ html, body {
 
 .upload-btn:active { background: #163d7e; }
 
+.upload-btn-secondary {
+  background: transparent;
+  color: var(--text-light);
+  border: 2px solid var(--divider);
+  margin-top: 8px;
+  font-size: 0.85rem;
+}
+.upload-btn-secondary:active { background: var(--divider); }
+
 .upload-hint {
   color: var(--text-light);
   font-size: 0.85rem;
