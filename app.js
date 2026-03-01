@@ -5,7 +5,7 @@
 'use strict';
 
 // ── Version ───────────────────────────────────
-const APP_VERSION = 'v2.1';
+const APP_VERSION = 'v2.2';
 
 // ── Storage keys ──────────────────────────────
 const RECORDS_KEY = 'wo_records';
@@ -88,6 +88,18 @@ const btnMergeKeep = document.getElementById('btn-merge-keep');
 const btnMergeFresh = document.getElementById('btn-merge-fresh');
 
 // ── Helpers ───────────────────────────────────
+function fmtDate(str) {
+  if (!str) return str;
+  try {
+    const d = new Date(str);
+    if (isNaN(d)) return str;
+    const mon = d.toLocaleDateString('en-CA', { month: 'short' });
+    const day = String(d.getDate()).padStart(2, '0');
+    const wday = d.toLocaleDateString('en-CA', { weekday: 'short' });
+    return `${mon} ${day} (${wday})`;
+  } catch (_) { return str; }
+}
+
 function esc(s) {
   return String(s || '')
     .replace(/&/g, '&amp;')
@@ -669,7 +681,7 @@ function openDetailSheet(row, lat, lng) {
   const ts = (row['targetstart'] || '').trim();
   const tf = (row['targetfinish'] || '').trim();
   if (ts || tf) {
-    detailDates.textContent = ts && tf ? `${ts} → ${tf}` : (ts || tf);
+    detailDates.textContent = ts && tf ? `${fmtDate(ts)} → ${fmtDate(tf)}` : fmtDate(ts || tf);
     detailDatesRow.classList.remove('hidden');
   } else {
     detailDatesRow.classList.add('hidden');
