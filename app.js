@@ -5,12 +5,13 @@
 'use strict';
 
 // ── Version ───────────────────────────────────
-const APP_VERSION = 'v1.2';
+const APP_VERSION = 'v2.0';
 
 // ── Storage keys ──────────────────────────────
 const RECORDS_KEY = 'wo_records';
 const GEOCACHE_KEY = 'wo_geocache';
 const COMPLETIONS_KEY = 'wo_completions';
+const MAP_STYLE_KEY = 'wo_map_style';
 
 
 // ── State ─────────────────────────────────────
@@ -27,6 +28,8 @@ let gpsAutoStopTimer = null;
 let activeRow = null;     // row shown in detail sheet
 let sheetJustOpened = false;    // guard: prevents same tap from immediately closing the sheet
 let dueTodayActive = false;
+let mapStyle = localStorage.getItem(MAP_STYLE_KEY) || 'auto';
+let darkMQ = null;
 
 // ── DOM refs ──────────────────────────────────
 const splash = document.getElementById('splash');
@@ -72,6 +75,8 @@ const overdueWarning = document.getElementById('detail-overdue-warning');
 const overdueText = document.getElementById('detail-overdue-text');
 const overdueDismiss = document.getElementById('detail-overdue-dismiss');
 const statusBar = document.getElementById('status-bar');
+const btnMapStyle = document.getElementById('btn-map-style');
+const mapStyleMenu = document.getElementById('map-style-menu');
 
 // ── Helpers ───────────────────────────────────
 function esc(s) {
@@ -414,14 +419,46 @@ function refreshMarkerIcon(workorder) {
 }
 
 // ── Map initialisation ────────────────────────
+const TILES = {
+  light: {
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+  },
+  dark: {
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+  },
+  satellite: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '© <a href="https://www.esri.com/">Esri</a> © OpenStreetMap',
+  },
+};
+
+let tileLayerRef = null;
+
+function applyTileTheme(style) {
+  if (!leafletMap) return;
+  mapStyle = style;
+  let cfg;
+  if (style === 'auto') {
+    cfg = (darkMQ && darkMQ.matches) ? TILES.dark : TILES.light;
+  } else {
+    cfg = TILES[style] || TILES.light;
+  }
+  if (tileLayerRef) leafletMap.removeLayer(tileLayerRef);
+  tileLayerRef = L.tileLayer(cfg.url, { attribution: cfg.attribution, maxZoom: 19 });
+  tileLayerRef.addTo(leafletMap);
+  tileLayerRef.bringToBack();
+}
+
 function initLeafletMap() {
   if (mapInitialized) return;
 
   leafletMap = L.map('map-container', { zoomControl: true });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 19,
-  }).addTo(leafletMap);
+
+  darkMQ = window.matchMedia('(prefers-color-scheme: dark)');
+  applyTileTheme(mapStyle);
+  darkMQ.addEventListener('change', () => { if (mapStyle === 'auto') applyTileTheme('auto'); });
 
   // GPS locate button
   const LocateControl = L.Control.extend({
@@ -493,7 +530,7 @@ function clearMapMarkers() {
   mapMarkers = [];
 }
 
-function placeMarkers(points) {
+function placeMarkers(points, zoomToFit = true) {
   if (!mapInitialized) return;
   clearMapMarkers();
   const bounds = [];
@@ -521,7 +558,7 @@ function placeMarkers(points) {
     bounds.push([lat, lng]);
   });
 
-  if (bounds.length) {
+  if (bounds.length && zoomToFit) {
     leafletMap.fitBounds(bounds, { padding: [48, 48] });
   }
 }
@@ -865,7 +902,7 @@ viewMap.addEventListener('click', (e) => {
 });
 
 engineerFilterSel.addEventListener('change', () => {
-  placeMarkers(getFilteredPoints());
+  placeMarkers(getFilteredPoints(), false);
   updateBadge();
   updateStatusBar();
 });
@@ -873,10 +910,29 @@ engineerFilterSel.addEventListener('change', () => {
 btnDueToday.addEventListener('click', () => {
   dueTodayActive = !dueTodayActive;
   btnDueToday.classList.toggle('active', dueTodayActive);
-  placeMarkers(getFilteredPoints());
+  placeMarkers(getFilteredPoints(), false);
   updateBadge();
   updateStatusBar();
 });
+
+btnMapStyle.addEventListener('click', e => {
+  e.stopPropagation();
+  mapStyleMenu.querySelectorAll('[data-style]').forEach(i =>
+    i.classList.toggle('active', i.dataset.style === mapStyle));
+  mapStyleMenu.classList.toggle('hidden');
+});
+
+mapStyleMenu.querySelectorAll('[data-style]').forEach(item => {
+  item.addEventListener('click', e => {
+    e.stopPropagation();
+    const style = item.dataset.style;
+    applyTileTheme(style);
+    localStorage.setItem(MAP_STYLE_KEY, style);
+    mapStyleMenu.classList.add('hidden');
+  });
+});
+
+document.addEventListener('click', () => mapStyleMenu.classList.add('hidden'));
 
 btnFixAddresses.addEventListener('click', showGeocodeFix);
 geocodeFixClose.addEventListener('click', () => geocodeFixModal.classList.add('hidden'));
@@ -923,7 +979,7 @@ btnComplete.addEventListener('click', () => {
 function boot() {
   completions = loadCompletions();
 
-  // Hide splash after short delay
+  // Hide splash after letter animation sequence completes (~4.3s)
   setTimeout(() => {
     splash.style.transition = 'opacity 0.4s';
     splash.style.opacity = '0';
@@ -940,7 +996,7 @@ function boot() {
       geocodeAllRecords(() => { }).then(({ points, failures }) => {
         geocodedPoints = points;
         geocodeFailures = failures;
-        placeMarkers(getFilteredPoints());
+        placeMarkers(getFilteredPoints(), false);
         updateBadge();
         updateStatusBar();
         updateNotFoundBar();
@@ -948,7 +1004,7 @@ function boot() {
     } else {
       showHomeView();
     }
-  }, 1200);
+  }, 4300);
 }
 
 boot();
