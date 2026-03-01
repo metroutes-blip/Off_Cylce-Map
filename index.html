@@ -46,6 +46,18 @@
     </div>
   </div>
 
+  <!-- ── Engineer picker ───────────────────────── -->
+  <div id="view-engineer" class="view hidden">
+    <div class="home-header">
+      <img src="../pwa-meter-reader/met-logo.jpg" alt="MET" class="home-logo" />
+      <h1 class="home-title">Who are you?</h1>
+      <p class="home-sub">Select your name to load your work orders</p>
+    </div>
+    <div class="home-body">
+      <div id="engineer-list" class="engineer-list"></div>
+    </div>
+  </div>
+
   <!-- ── Map view ───────────────────────────────── -->
   <div id="view-map" class="view hidden">
 
@@ -108,6 +120,7 @@
           <div data-style="light"     class="map-style-item">Street (Light)</div>
           <div data-style="dark"      class="map-style-item">Street (Dark)</div>
           <div data-style="satellite" class="map-style-item">Satellite</div>
+          <div data-style="standard"  class="map-style-item">Standard (OSM)</div>
         </div>
       </div>
     </div>
@@ -212,6 +225,18 @@
         </button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ── Merge previous work orders modal ──────── -->
+  <div id="merge-modal" class="modal-overlay hidden">
+    <div class="modal-sheet">
+      <h2 class="modal-title">Previous Work Orders</h2>
+      <p id="merge-modal-desc" class="modal-desc"></p>
+      <div class="modal-actions">
+        <button id="btn-merge-keep" class="modal-action-primary">Keep &amp; Merge</button>
+        <button id="btn-merge-fresh" class="modal-action-secondary">Start Fresh</button>
+      </div>
     </div>
   </div>
 

@@ -168,6 +168,33 @@ html, body {
   line-height: 1.5;
 }
 
+/* ─── Engineer picker ────────────────────────── */
+.engineer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 360px;
+  padding: 0 24px;
+}
+
+.engineer-pick-btn {
+  width: 100%;
+  padding: 16px 20px;
+  background: var(--header-bg);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.engineer-pick-btn:active { opacity: 0.7; }
+
 /* ─── Map view ───────────────────────────────── */
 #view-map {
   position: fixed;
@@ -631,6 +658,38 @@ html, body {
   cursor: pointer;
   flex-shrink: 0;
 }
+
+/* ─── Merge modal action buttons ────────────── */
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.modal-action-primary,
+.modal-action-secondary {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.modal-action-primary {
+  background: var(--header-bg);
+  color: #fff;
+}
+.modal-action-primary:active { opacity: 0.8; }
+
+.modal-action-secondary {
+  background: var(--bg);
+  color: var(--text-dark);
+}
+.modal-action-secondary:active { opacity: 0.7; }
 
 /* ─── Topbar right gap ───────────────────────── */
 .map-topbar-right {

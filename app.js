@@ -5,13 +5,14 @@
 'use strict';
 
 // ── Version ───────────────────────────────────
-const APP_VERSION = 'v2.0';
+const APP_VERSION = 'v2.1';
 
 // ── Storage keys ──────────────────────────────
 const RECORDS_KEY = 'wo_records';
 const GEOCACHE_KEY = 'wo_geocache';
 const COMPLETIONS_KEY = 'wo_completions';
 const MAP_STYLE_KEY = 'wo_map_style';
+const ENGINEER_KEY = 'wo_engineer';
 
 
 // ── State ─────────────────────────────────────
@@ -28,6 +29,8 @@ let gpsAutoStopTimer = null;
 let activeRow = null;     // row shown in detail sheet
 let sheetJustOpened = false;    // guard: prevents same tap from immediately closing the sheet
 let dueTodayActive = false;
+let selectedEngineer = '';
+let pendingRecords = null;
 let mapStyle = localStorage.getItem(MAP_STYLE_KEY) || 'auto';
 let darkMQ = null;
 
@@ -77,6 +80,12 @@ const overdueDismiss = document.getElementById('detail-overdue-dismiss');
 const statusBar = document.getElementById('status-bar');
 const btnMapStyle = document.getElementById('btn-map-style');
 const mapStyleMenu = document.getElementById('map-style-menu');
+const viewEngineer = document.getElementById('view-engineer');
+const engineerList = document.getElementById('engineer-list');
+const mergeModal = document.getElementById('merge-modal');
+const mergeModalDesc = document.getElementById('merge-modal-desc');
+const btnMergeKeep = document.getElementById('btn-merge-keep');
+const btnMergeFresh = document.getElementById('btn-merge-fresh');
 
 // ── Helpers ───────────────────────────────────
 function esc(s) {
@@ -218,7 +227,8 @@ function geocodeAllRecords(progressCb) {
     streetAddress: (row['Street Address'] || '').trim(),
     misAddress: (row['Mis Address'] || '').trim(),
     city: (row['City'] || '').trim(),
-  })).filter(t => t.streetAddress);
+  })).filter(t => t.streetAddress &&
+    (!selectedEngineer || (t.row['engineer'] || '').trim() === selectedEngineer));
 
   const results = [], failures = [];
   let done = 0;
@@ -431,6 +441,10 @@ const TILES = {
   satellite: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: '© <a href="https://www.esri.com/">Esri</a> © OpenStreetMap',
+  },
+  standard: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   },
 };
 
@@ -805,6 +819,33 @@ function updateStatusBar() {
 }
 
 // ── Load CSV and kick off geocoding ───────────
+function applyNewCSV(records, keepPrev) {
+  let finalRecords = records;
+
+  if (keepPrev && workOrders.length && selectedEngineer) {
+    const prevIncomplete = workOrders.filter(r => {
+      const wo = (r['Workorder'] || '').trim();
+      return (r['engineer'] || '').trim() === selectedEngineer && wo && !completions[wo];
+    });
+    if (prevIncomplete.length) {
+      const newWoIds = new Set(records.map(r => (r['Workorder'] || '').trim()));
+      const extras = prevIncomplete.filter(r => !newWoIds.has((r['Workorder'] || '').trim()));
+      finalRecords = [...records, ...extras];
+    }
+  }
+
+  workOrders = finalRecords;
+  geocodedPoints = [];
+  geocodeFailures = [];
+  selectedEngineer = '';
+  clearMapMarkers();
+
+  try { localStorage.setItem(RECORDS_KEY, JSON.stringify(workOrders)); } catch (_) { }
+  try { localStorage.removeItem(ENGINEER_KEY); } catch (_) { }
+
+  showEngineerView();
+}
+
 function loadCSV(file) {
   const reader = new FileReader();
   reader.onload = (ev) => {
@@ -814,40 +855,74 @@ function loadCSV(file) {
       return;
     }
 
-    workOrders = records;
-    geocodedPoints = [];
-    geocodeFailures = [];
-    clearMapMarkers();
-    engineerFilterSel.value = '';
+    // If there are incomplete work orders from a previous session, offer to keep them
+    if (workOrders.length && selectedEngineer) {
+      const prevIncomplete = workOrders.filter(r => {
+        const wo = (r['Workorder'] || '').trim();
+        return (r['engineer'] || '').trim() === selectedEngineer && wo && !completions[wo];
+      });
+      if (prevIncomplete.length) {
+        pendingRecords = records;
+        mergeModalDesc.textContent =
+          `You have ${prevIncomplete.length} incomplete work order${prevIncomplete.length !== 1 ? 's' : ''} from your previous session. Keep them alongside the new file?`;
+        mergeModal.classList.remove('hidden');
+        return;
+      }
+    }
 
-    try { localStorage.setItem(RECORDS_KEY, JSON.stringify(workOrders)); } catch (_) { }
-
-    buildEngineerFilter();
-    showMapView();
-    woCountBadge.textContent = `${workOrders.length} job${workOrders.length !== 1 ? 's' : ''}`;
-
-    // Show progress bar
-    geocodeBar.classList.remove('hidden');
-    geocodeBarFill.style.width = '0%';
-    geocodeBarText.textContent = `Locating addresses… 0 / ${workOrders.length}`;
-    notFoundBanner.classList.add('hidden');
-
-    geocodeAllRecords((done, total) => {
-      const pct = Math.round((done / total) * 100);
-      geocodeBarFill.style.width = pct + '%';
-      geocodeBarText.textContent = `Locating addresses… ${done} / ${total}`;
-    }).then(({ points, failures }) => {
-      geocodedPoints = points;
-      geocodeFailures = failures;
-      geocodeBar.classList.add('hidden');
-      placeMarkers(getFilteredPoints());
-      updateBadge();
-      updateStatusBar();
-      updateNotFoundBar();
-      if (failures.length) showToast(`${failures.length} address${failures.length > 1 ? 'es' : ''} could not be located`);
-    });
+    applyNewCSV(records, false);
   };
   reader.readAsText(file);
+}
+
+// ── Engineer picker ───────────────────────────
+function showEngineerView() {
+  viewHome.classList.add('hidden');
+  viewMap.classList.add('hidden');
+  viewEngineer.classList.remove('hidden');
+
+  const names = [...new Set(
+    workOrders.map(r => (r['engineer'] || '').trim()).filter(Boolean)
+  )].sort();
+
+  engineerList.innerHTML = '';
+  names.forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'engineer-pick-btn';
+    btn.textContent = name;
+    btn.addEventListener('click', () => selectEngineer(name));
+    engineerList.appendChild(btn);
+  });
+}
+
+function selectEngineer(name) {
+  selectedEngineer = name;
+  try { localStorage.setItem(ENGINEER_KEY, name); } catch (_) { }
+
+  viewEngineer.classList.add('hidden');
+  showMapView();
+
+  const myJobs = workOrders.filter(r => (r['engineer'] || '').trim() === name);
+  woCountBadge.textContent = `${myJobs.length} job${myJobs.length !== 1 ? 's' : ''}`;
+
+  geocodeBar.classList.remove('hidden');
+  geocodeBarFill.style.width = '0%';
+  geocodeBarText.textContent = `Locating addresses… 0 / ${myJobs.length}`;
+  notFoundBanner.classList.add('hidden');
+
+  geocodeAllRecords((done, total) => {
+    geocodeBarFill.style.width = Math.round((done / total) * 100) + '%';
+    geocodeBarText.textContent = `Locating addresses… ${done} / ${total}`;
+  }).then(({ points, failures }) => {
+    geocodedPoints = points;
+    geocodeFailures = failures;
+    geocodeBar.classList.add('hidden');
+    placeMarkers(getFilteredPoints());
+    updateBadge();
+    updateStatusBar();
+    updateNotFoundBar();
+    if (failures.length) showToast(`${failures.length} address${failures.length > 1 ? 'es' : ''} could not be located`);
+  });
 }
 
 // ── View switching ────────────────────────────
@@ -934,6 +1009,18 @@ mapStyleMenu.querySelectorAll('[data-style]').forEach(item => {
 
 document.addEventListener('click', () => mapStyleMenu.classList.add('hidden'));
 
+btnMergeKeep.addEventListener('click', () => {
+  mergeModal.classList.add('hidden');
+  applyNewCSV(pendingRecords, true);
+  pendingRecords = null;
+});
+
+btnMergeFresh.addEventListener('click', () => {
+  mergeModal.classList.add('hidden');
+  applyNewCSV(pendingRecords, false);
+  pendingRecords = null;
+});
+
 btnFixAddresses.addEventListener('click', showGeocodeFix);
 geocodeFixClose.addEventListener('click', () => geocodeFixModal.classList.add('hidden'));
 overdueDismiss.addEventListener('click', () => overdueWarning.classList.add('hidden'));
@@ -985,12 +1072,14 @@ function boot() {
     splash.style.opacity = '0';
     setTimeout(() => splash.remove(), 400);
 
+    const savedEngineer = localStorage.getItem(ENGINEER_KEY) || '';
     const hasSession = tryRestoreSession();
 
-    if (hasSession) {
-      buildEngineerFilter();
+    if (hasSession && savedEngineer) {
+      selectedEngineer = savedEngineer;
       showMapView();
-      woCountBadge.textContent = `${workOrders.length} job${workOrders.length !== 1 ? 's' : ''}`;
+      const myJobs = workOrders.filter(r => (r['engineer'] || '').trim() === savedEngineer);
+      woCountBadge.textContent = `${myJobs.length} job${myJobs.length !== 1 ? 's' : ''}`;
 
       // Re-geocode from cache (will use cached results, no network calls)
       geocodeAllRecords(() => { }).then(({ points, failures }) => {
@@ -1001,6 +1090,9 @@ function boot() {
         updateStatusBar();
         updateNotFoundBar();
       });
+    } else if (hasSession) {
+      // CSV loaded but no engineer saved — show picker
+      showEngineerView();
     } else {
       showHomeView();
     }
