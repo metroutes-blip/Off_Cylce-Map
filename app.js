@@ -5,7 +5,7 @@
 'use strict';
 
 // ── Version ───────────────────────────────────
-const APP_VERSION = 'v2.2';
+const APP_VERSION = 'v2.3';
 
 // ── Storage keys ──────────────────────────────
 const RECORDS_KEY = 'wo_records';
@@ -13,6 +13,7 @@ const GEOCACHE_KEY = 'wo_geocache';
 const COMPLETIONS_KEY = 'wo_completions';
 const MAP_STYLE_KEY = 'wo_map_style';
 const ENGINEER_KEY = 'wo_engineer';
+const POINTS_KEY = 'wo_points';
 
 
 // ── State ─────────────────────────────────────
@@ -177,6 +178,14 @@ function loadGeoCache() {
 }
 function saveGeoCache(cache) {
   try { localStorage.setItem(GEOCACHE_KEY, JSON.stringify(cache)); } catch (_) { }
+}
+
+// ── Persisted geocoded points ─────────────────
+function savePoints() {
+  try { localStorage.setItem(POINTS_KEY, JSON.stringify(geocodedPoints)); } catch (_) { }
+}
+function loadPoints() {
+  try { return JSON.parse(localStorage.getItem(POINTS_KEY) || '[]'); } catch (_) { return []; }
 }
 
 // ── Address cleaning for geocoding ───────────
@@ -585,6 +594,7 @@ function placeMarkers(points, zoomToFit = true) {
   });
 
   if (bounds.length && zoomToFit) {
+    leafletMap.invalidateSize();
     leafletMap.fitBounds(bounds, { padding: [48, 48] });
   }
 }
@@ -769,6 +779,7 @@ function showGeocodeFix() {
 
           geocodedPoints.push({ lat: coords.lat, lng: coords.lng, row: f.row });
           geocodeFailures = geocodeFailures.filter((_, i) => i !== idx);
+          savePoints();
           addSingleMarker(coords, f.row);
           updateNotFoundBar();
 
@@ -854,6 +865,7 @@ function applyNewCSV(records, keepPrev) {
 
   try { localStorage.setItem(RECORDS_KEY, JSON.stringify(workOrders)); } catch (_) { }
   try { localStorage.removeItem(ENGINEER_KEY); } catch (_) { }
+  try { localStorage.removeItem(POINTS_KEY); } catch (_) { }
 
   showEngineerView();
 }
@@ -911,10 +923,13 @@ function selectEngineer(name) {
   selectedEngineer = name;
   try { localStorage.setItem(ENGINEER_KEY, name); } catch (_) { }
 
+  // Narrow the saved records down to just this engineer's rows so the
+  // localStorage payload stays small regardless of how large the full CSV is.
+  const myJobs = workOrders.filter(r => (r['engineer'] || '').trim() === name);
+  try { localStorage.setItem(RECORDS_KEY, JSON.stringify(myJobs)); } catch (_) { }
+
   viewEngineer.classList.add('hidden');
   showMapView();
-
-  const myJobs = workOrders.filter(r => (r['engineer'] || '').trim() === name);
   woCountBadge.textContent = `${myJobs.length} job${myJobs.length !== 1 ? 's' : ''}`;
 
   geocodeBar.classList.remove('hidden');
@@ -928,8 +943,9 @@ function selectEngineer(name) {
   }).then(({ points, failures }) => {
     geocodedPoints = points;
     geocodeFailures = failures;
+    savePoints();
     geocodeBar.classList.add('hidden');
-    placeMarkers(getFilteredPoints());
+    placeMarkers(getFilteredPoints(), true);
     updateBadge();
     updateStatusBar();
     updateNotFoundBar();
@@ -1093,15 +1109,28 @@ function boot() {
       const myJobs = workOrders.filter(r => (r['engineer'] || '').trim() === savedEngineer);
       woCountBadge.textContent = `${myJobs.length} job${myJobs.length !== 1 ? 's' : ''}`;
 
-      // Re-geocode from cache (will use cached results, no network calls)
-      geocodeAllRecords(() => { }).then(({ points, failures }) => {
-        geocodedPoints = points;
-        geocodeFailures = failures;
-        placeMarkers(getFilteredPoints(), false);
-        updateBadge();
-        updateStatusBar();
-        updateNotFoundBar();
-      });
+      // Restore saved points — wait for Leaflet to size itself first
+      const savedPoints = loadPoints();
+      setTimeout(() => {
+        if (savedPoints.length) {
+          geocodedPoints = savedPoints;
+          placeMarkers(getFilteredPoints(), true);
+          updateBadge();
+          updateStatusBar();
+          updateNotFoundBar();
+        } else {
+          // No saved points (e.g. crash during geocoding) — re-geocode from cache
+          geocodeAllRecords(() => { }).then(({ points, failures }) => {
+            geocodedPoints = points;
+            geocodeFailures = failures;
+            if (points.length) savePoints();
+            placeMarkers(getFilteredPoints(), true);
+            updateBadge();
+            updateStatusBar();
+            updateNotFoundBar();
+          });
+        }
+      }, 150);
     } else if (hasSession) {
       // CSV loaded but no engineer saved — show picker
       showEngineerView();
