@@ -4,71 +4,74 @@
 
 'use strict';
 
+// ── Version ───────────────────────────────────
+const APP_VERSION = 'v1.1';
+
 // ── Storage keys ──────────────────────────────
-const RECORDS_KEY     = 'wo_records';
-const GEOCACHE_KEY    = 'wo_geocache';
+const RECORDS_KEY = 'wo_records';
+const GEOCACHE_KEY = 'wo_geocache';
 const COMPLETIONS_KEY = 'wo_completions';
 
 
 // ── State ─────────────────────────────────────
-let workOrders      = [];       // parsed CSV rows
-let geocodedPoints  = [];       // { lat, lng, row }
+let workOrders = [];       // parsed CSV rows
+let geocodedPoints = [];       // { lat, lng, row }
 let geocodeFailures = [];       // { row, query }
-let completions     = {};       // { [workorder]: { date } }
-let mapInitialized  = false;
-let leafletMap      = null;
-let mapMarkers      = [];
-let userLocationMarker  = null;
-let gpsWatching     = false;
-let gpsAutoStopTimer    = null;
-let activeRow       = null;     // row shown in detail sheet
+let completions = {};       // { [workorder]: { date } }
+let mapInitialized = false;
+let leafletMap = null;
+let mapMarkers = [];
+let userLocationMarker = null;
+let gpsWatching = false;
+let gpsAutoStopTimer = null;
+let activeRow = null;     // row shown in detail sheet
 let sheetJustOpened = false;    // guard: prevents same tap from immediately closing the sheet
-let dueTodayActive  = false;
+let dueTodayActive = false;
 
 // ── DOM refs ──────────────────────────────────
-const splash          = document.getElementById('splash');
-const viewHome        = document.getElementById('view-home');
-const viewMap         = document.getElementById('view-map');
-const csvFileInput    = document.getElementById('csv-file-input');
-const csvReloadInput  = document.getElementById('csv-reload-input');
-const btnLoadNew      = document.getElementById('btn-load-new');
-const woCountBadge    = document.getElementById('wo-count-badge');
-const geocodeBar      = document.getElementById('geocode-bar');
-const geocodeBarText  = document.getElementById('geocode-bar-text');
-const geocodeBarFill  = document.getElementById('geocode-bar-fill');
-const notFoundBanner  = document.getElementById('not-found-banner');
-const notFoundText    = document.getElementById('not-found-text');
+const splash = document.getElementById('splash');
+const viewHome = document.getElementById('view-home');
+const viewMap = document.getElementById('view-map');
+const csvFileInput = document.getElementById('csv-file-input');
+const csvReloadInput = document.getElementById('csv-reload-input');
+const btnLoadNew = document.getElementById('btn-load-new');
+const woCountBadge = document.getElementById('wo-count-badge');
+const geocodeBar = document.getElementById('geocode-bar');
+const geocodeBarText = document.getElementById('geocode-bar-text');
+const geocodeBarFill = document.getElementById('geocode-bar-fill');
+const notFoundBanner = document.getElementById('not-found-banner');
+const notFoundText = document.getElementById('not-found-text');
 const btnFixAddresses = document.getElementById('btn-fix-addresses');
-const detailSheet     = document.getElementById('detail-sheet');
-const detailClose     = document.getElementById('detail-close');
+const detailSheet = document.getElementById('detail-sheet');
+const detailClose = document.getElementById('detail-close');
 const detailNotifChip = document.getElementById('detail-notif-chip');
-const detailWoNum     = document.getElementById('detail-wo-num');
-const detailAddress   = document.getElementById('detail-address');
-const detailMis       = document.getElementById('detail-mis');
-const detailCity      = document.getElementById('detail-city');
-const detailLocRow    = document.getElementById('detail-loc-row');
-const detailLoc       = document.getElementById('detail-loc');
-const detailWorkType  = document.getElementById('detail-work-type');
+const detailWoNum = document.getElementById('detail-wo-num');
+const detailAddress = document.getElementById('detail-address');
+const detailMis = document.getElementById('detail-mis');
+const detailCity = document.getElementById('detail-city');
+const detailLocRow = document.getElementById('detail-loc-row');
+const detailLoc = document.getElementById('detail-loc');
+const detailWorkType = document.getElementById('detail-work-type');
 const detailNotifCode = document.getElementById('detail-notif-code');
-const detailMeterNum  = document.getElementById('detail-meter-num');
+const detailMeterNum = document.getElementById('detail-meter-num');
 const detailMeterSize = document.getElementById('detail-meter-size');
 const detailLastReadRow = document.getElementById('detail-last-read-row');
-const detailLastRead  = document.getElementById('detail-last-read');
-const detailRefErt    = document.getElementById('detail-ref-ert');
-const detailDatesRow  = document.getElementById('detail-dates-row');
-const detailDates     = document.getElementById('detail-dates');
-const detailNavLink   = document.getElementById('detail-nav-link');
+const detailLastRead = document.getElementById('detail-last-read');
+const detailRefErt = document.getElementById('detail-ref-ert');
+const detailDatesRow = document.getElementById('detail-dates-row');
+const detailDates = document.getElementById('detail-dates');
+const detailNavLink = document.getElementById('detail-nav-link');
 const geocodeFixModal = document.getElementById('geocode-fix-modal');
-const geocodeFixList  = document.getElementById('geocode-fix-list');
+const geocodeFixList = document.getElementById('geocode-fix-list');
 const geocodeFixClose = document.getElementById('geocode-fix-close');
-const engineerFilterSel   = document.getElementById('engineer-filter');
-const btnDueToday         = document.getElementById('btn-due-today');
-const toast               = document.getElementById('toast');
-const btnComplete         = document.getElementById('btn-complete');
-const overdueWarning      = document.getElementById('detail-overdue-warning');
-const overdueText         = document.getElementById('detail-overdue-text');
-const overdueDismiss      = document.getElementById('detail-overdue-dismiss');
-const statusBar           = document.getElementById('status-bar');
+const engineerFilterSel = document.getElementById('engineer-filter');
+const btnDueToday = document.getElementById('btn-due-today');
+const toast = document.getElementById('toast');
+const btnComplete = document.getElementById('btn-complete');
+const overdueWarning = document.getElementById('detail-overdue-warning');
+const overdueText = document.getElementById('detail-overdue-text');
+const overdueDismiss = document.getElementById('detail-overdue-dismiss');
+const statusBar = document.getElementById('status-bar');
 
 // ── Helpers ───────────────────────────────────
 function esc(s) {
@@ -139,7 +142,7 @@ function loadCompletions() {
   try { return JSON.parse(localStorage.getItem(COMPLETIONS_KEY) || '{}'); } catch (_) { return {}; }
 }
 function saveCompletions() {
-  try { localStorage.setItem(COMPLETIONS_KEY, JSON.stringify(completions)); } catch (_) {}
+  try { localStorage.setItem(COMPLETIONS_KEY, JSON.stringify(completions)); } catch (_) { }
 }
 
 // ── Geocache ──────────────────────────────────
@@ -147,7 +150,7 @@ function loadGeoCache() {
   try { return JSON.parse(localStorage.getItem(GEOCACHE_KEY) || '{}'); } catch (_) { return {}; }
 }
 function saveGeoCache(cache) {
-  try { localStorage.setItem(GEOCACHE_KEY, JSON.stringify(cache)); } catch (_) {}
+  try { localStorage.setItem(GEOCACHE_KEY, JSON.stringify(cache)); } catch (_) { }
 }
 
 // ── Address cleaning for geocoding ───────────
@@ -174,7 +177,7 @@ function cleanAddressForGeocode(streetAddress, misAddress) {
 // ── Single-address geocoder (Nominatim) ───────
 function geocodeAddress(streetAddress, misAddress, city, cache) {
   const cleanAddr = cleanAddressForGeocode(streetAddress, misAddress);
-  const cacheKey  = `${cleanAddr},${city}`.toLowerCase();
+  const cacheKey = `${cleanAddr},${city}`.toLowerCase();
 
   if (cache[cacheKey]) return Promise.resolve({ coords: cache[cacheKey], count: 0 });
 
@@ -223,8 +226,10 @@ function geocodeAllRecords(progressCb) {
       done++;
       progressCb(done, total);
       if (coords) results.push({ lat: coords.lat, lng: coords.lng, row });
-      else failures.push({ row, streetAddress, misAddress, city,
-        query: `${cleanAddressForGeocode(streetAddress, misAddress)}, Ontario` });
+      else failures.push({
+        row, streetAddress, misAddress, city,
+        query: `${cleanAddressForGeocode(streetAddress, misAddress)}, Ontario`
+      });
       const delay = count * 1050;
       return new Promise(res => setTimeout(res, delay)).then(() => processNext(i + 1));
     });
@@ -236,20 +241,20 @@ function geocodeAllRecords(progressCb) {
 // ── Marker icons ──────────────────────────────
 const NOTIF_CODE = (row) => (row['Notification Code'] || '').trim().toUpperCase();
 
-function isRedLock(row)      { return NOTIF_CODE(row) === 'RDLK'; }
-function isBlackLock(row)    { return ['LKFS', 'TLOC', 'LOCK'].includes(NOTIF_CODE(row)); }
-function isOpenLock(row)     { return NOTIF_CODE(row) === 'LKOO'; }
-function isBattery(row)      { return NOTIF_CODE(row) === 'RMBE'; }
-function isTamper(row)       { return NOTIF_CODE(row) === 'TC01'; }
-function isMove(row)         { return NOTIF_CODE(row) === 'MOVE'; }
-function isSpecialRead(row)  { return ['MT31', 'ESTS', 'CKRD'].includes(NOTIF_CODE(row)); }
+function isRedLock(row) { return NOTIF_CODE(row) === 'RDLK'; }
+function isBlackLock(row) { return ['LKFS', 'TLOC', 'LOCK'].includes(NOTIF_CODE(row)); }
+function isOpenLock(row) { return NOTIF_CODE(row) === 'LKOO'; }
+function isBattery(row) { return NOTIF_CODE(row) === 'RMBE'; }
+function isTamper(row) { return NOTIF_CODE(row) === 'TC01'; }
+function isMove(row) { return NOTIF_CODE(row) === 'MOVE'; }
+function isSpecialRead(row) { return ['MT31', 'ESTS', 'CKRD'].includes(NOTIF_CODE(row)); }
 
 function getMarkerColor(row) {
-  if (isRedLock(row))     return '#ef4444';   // red lock
-  if (isBlackLock(row))   return '#1a1a1a';   // black lock
-  if (isOpenLock(row))    return '#4b5563';   // dark grey open lock
-  if (isBattery(row))     return '#f97316';   // orange battery
-  if (isTamper(row))      return '#0d9488';   // turquoise tamper
+  if (isRedLock(row)) return '#ef4444';   // red lock
+  if (isBlackLock(row)) return '#1a1a1a';   // black lock
+  if (isOpenLock(row)) return '#4b5563';   // dark grey open lock
+  if (isBattery(row)) return '#f97316';   // orange battery
+  if (isTamper(row)) return '#0d9488';   // turquoise tamper
   if (isSpecialRead(row)) return '#eab308';   // yellow special read
   return '#3b82f6';                           // default blue
 }
@@ -281,8 +286,8 @@ function isLockEndToday(row) {
   if (!effective) return false;
   const today = new Date();
   return effective.getFullYear() === today.getFullYear() &&
-         effective.getMonth()    === today.getMonth()    &&
-         effective.getDate()     === today.getDate();
+    effective.getMonth() === today.getMonth() &&
+    effective.getDate() === today.getDate();
 }
 
 function isLockEndPast(row) {
@@ -299,15 +304,15 @@ function isAptToday(row) {
     const d = new Date(val);
     const today = new Date();
     return d.getFullYear() === today.getFullYear() &&
-           d.getMonth()    === today.getMonth()    &&
-           d.getDate()     === today.getDate();
+      d.getMonth() === today.getMonth() &&
+      d.getDate() === today.getDate();
   } catch (_) { return false; }
 }
 
 function isDueToday(row) {
-  if (isRedLock(row))    return isLockEndToday(row);
-  if (isTamper(row))     return true;                    // TC01
-  if (isBlackLock(row))  return true;                    // LKFS, TLOC, LOCK
+  if (isRedLock(row)) return isLockEndToday(row);
+  if (isTamper(row)) return true;                    // TC01
+  if (isBlackLock(row)) return true;                    // LKFS, TLOC, LOCK
   if (isSpecialRead(row)) return isAptToday(row);        // MT31, ESTS, CKRD — only if aptstart = today
   return false;
 }
@@ -389,11 +394,11 @@ function makeBaseMarkerIcon(row) {
     const badge = isLockEndPast(row) ? 'exclamation' : isLockEndToday(row) ? 'star' : null;
     return makeLockIcon('#ef4444', '#ef4444', badge);
   }
-  if (isBlackLock(row))   return makeLockIcon('#1a1a1a', '#1a1a1a');
-  if (isOpenLock(row))    return makeOpenLockIcon();
-  if (isBattery(row))     return makeBatteryIcon();
-  if (isTamper(row))      return makeTamperIcon();
-  if (isMove(row))        return makeMoveIcon();
+  if (isBlackLock(row)) return makeLockIcon('#1a1a1a', '#1a1a1a');
+  if (isOpenLock(row)) return makeOpenLockIcon();
+  if (isBattery(row)) return makeBatteryIcon();
+  if (isTamper(row)) return makeTamperIcon();
+  if (isMove(row)) return makeMoveIcon();
   if (isSpecialRead(row)) return makeSpecialReadIcon();
   return makeCircleIcon(getMarkerColor(row));
 }
@@ -670,8 +675,8 @@ function showGeocodeFix() {
       <div class="geocode-fix-status"></div>
     `;
 
-    const input  = item.querySelector('.geocode-fix-input');
-    const btn    = item.querySelector('.geocode-fix-btn');
+    const input = item.querySelector('.geocode-fix-input');
+    const btn = item.querySelector('.geocode-fix-btn');
     const status = item.querySelector('.geocode-fix-status');
 
     btn.addEventListener('click', () => {
@@ -758,7 +763,7 @@ function updateStatusBar() {
   if (total === 0) { statusBar.classList.add('hidden'); return; }
   const done = pts.filter(p => completions[p.row['Workorder'] || '']).length;
   const remaining = total - done;
-  statusBar.textContent = `${done} complete · ${remaining} remaining`;
+  statusBar.innerHTML = `<span class="status-bar-version">${APP_VERSION}</span><span>${done} complete · ${remaining} remaining</span>`;
   statusBar.classList.remove('hidden');
 }
 
@@ -778,7 +783,7 @@ function loadCSV(file) {
     clearMapMarkers();
     engineerFilterSel.value = '';
 
-    try { localStorage.setItem(RECORDS_KEY, JSON.stringify(workOrders)); } catch (_) {}
+    try { localStorage.setItem(RECORDS_KEY, JSON.stringify(workOrders)); } catch (_) { }
 
     buildEngineerFilter();
     showMapView();
@@ -932,7 +937,7 @@ function boot() {
       woCountBadge.textContent = `${workOrders.length} job${workOrders.length !== 1 ? 's' : ''}`;
 
       // Re-geocode from cache (will use cached results, no network calls)
-      geocodeAllRecords(() => {}).then(({ points, failures }) => {
+      geocodeAllRecords(() => { }).then(({ points, failures }) => {
         geocodedPoints = points;
         geocodeFailures = failures;
         placeMarkers(getFilteredPoints());
@@ -950,5 +955,5 @@ boot();
 
 // ── Service worker registration ───────────────
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+  navigator.serviceWorker.register('./sw.js').catch(() => { });
 }

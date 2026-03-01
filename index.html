@@ -72,6 +72,28 @@
 
     <!-- Hidden file input for reload -->
     <input type="file" id="csv-reload-input" accept=".csv" hidden />
+
+    <!-- Load CSV button (bottom-left) -->
+    <button id="btn-load-new" class="btn-load-new-fixed" title="Load new CSV">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    </button>
+
+    <!-- Bottom-right controls -->
+    <div class="map-controls-br">
+      <span id="wo-count-badge" class="wo-count-badge">0 jobs</span>
+      <button id="btn-due-today" class="topbar-icon-btn due-today-btn" title="Due Today">Due Today</button>
+      <select id="engineer-filter" class="engineer-filter-select hidden">
+        <option value="">All Engineers</option>
+      </select>
+    </div>
+
+    <!-- Status bar (bottom) -->
+    <div id="status-bar" class="status-bar hidden"></div>
   </div>
 
   <!-- ── Detail sheet (bottom drawer) ──────────── -->
@@ -182,28 +204,6 @@
       <button id="geocode-fix-close" class="modal-cancel">Done</button>
     </div>
   </div>
-
-  <!-- ── Load CSV button (bottom-left) ────────── -->
-  <button id="btn-load-new" class="btn-load-new-fixed" title="Load new CSV">
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-         fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-      <polyline points="17 8 12 3 7 8"/>
-      <line x1="12" y1="3" x2="12" y2="15"/>
-    </svg>
-  </button>
-
-  <!-- ── Bottom-right controls ────────────────── -->
-  <div class="map-controls-br">
-    <span id="wo-count-badge" class="wo-count-badge">0 jobs</span>
-    <button id="btn-due-today" class="topbar-icon-btn due-today-btn" title="Due Today">Due Today</button>
-    <select id="engineer-filter" class="engineer-filter-select hidden">
-      <option value="">All Engineers</option>
-    </select>
-  </div>
-
-  <!-- ── Status bar (bottom) ──────────────────── -->
-  <div id="status-bar" class="status-bar hidden"></div>
 
   <!-- ── Toast ──────────────────────────────────── -->
   <div id="toast" class="toast hidden"></div>
