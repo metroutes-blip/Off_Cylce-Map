@@ -182,34 +182,51 @@ html, body {
   gap: 8px;
 }
 
+/* ─── Liquid glass base ──────────────────────── */
+.glass {
+  background: rgba(30, 40, 60, 0.45);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
 .engineer-filter-select {
-  background: var(--header-bg);
+  background: rgba(30, 40, 60, 0.45);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255,255,255,0.12);
   color: #fff;
-  border: none;
   border-radius: 10px;
   height: 38px;
   padding: 0 10px;
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
   max-width: 150px;
 }
 
 .wo-count-badge {
-  background: var(--header-bg);
+  background: rgba(30, 40, 60, 0.45);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255,255,255,0.12);
   color: #fff;
   font-size: 0.8rem;
   font-weight: 600;
   padding: 6px 12px;
   border-radius: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 
 .topbar-icon-btn {
-  background: var(--header-bg);
+  background: rgba(30, 40, 60, 0.45);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255,255,255,0.12);
   color: #fff;
-  border: none;
   border-radius: 10px;
   width: 38px;
   height: 38px;
@@ -217,7 +234,6 @@ html, body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -638,9 +654,12 @@ html, body {
   bottom: 46px;
   left: 16px;
   z-index: 600;
-  background: var(--header-bg);
+  background: rgba(30, 40, 60, 0.45);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255,255,255,0.12);
   color: #fff;
-  border: none;
   border-radius: 10px;
   width: 44px;
   height: 44px;
@@ -648,13 +667,16 @@ html, body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.35);
   -webkit-tap-highlight-color: transparent;
 }
 
 /* ─── Due Today toggle ───────────────────────── */
 .due-today-btn { font-size: 0.72rem; font-weight: 700; min-width: 68px; }
-.due-today-btn.active { background: #f59e0b; color: #1a2438; }
+.due-today-btn.active {
+  background: rgba(245, 158, 11, 0.75);
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #fff;
+}
 
 /* ─── Complete button ────────────────────────── */
 .complete-btn {
@@ -702,3 +724,42 @@ html, body {
 }
 
 .toast.fade-out { opacity: 0; }
+
+/* ─── Tablet (≥ 768px) ───────────────────────── */
+@media (min-width: 768px) {
+
+  /* Home view — larger, more centred */
+  .home-header { padding: 64px 40px 40px; }
+  .home-logo { width: 88px; height: 88px; }
+  .home-title { font-size: 1.8rem; }
+  .upload-btn { font-size: 1.1rem; padding: 18px 44px; }
+  .upload-hint { font-size: 0.9rem; max-width: 340px; }
+
+  /* Detail sheet — fixed width, centred */
+  .detail-sheet {
+    left: 50%;
+    right: auto;
+    width: 520px;
+    transform: translateX(-50%) translateY(100%);
+    border-radius: 20px 20px 0 0;
+  }
+  .detail-sheet.open {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Modal — fixed width, centred, floated up slightly */
+  .modal-overlay {
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .modal-sheet {
+    width: 520px;
+    border-radius: 20px 20px 0 0;
+  }
+
+  /* Engineer filter — more room */
+  .engineer-filter-select { max-width: 200px; }
+
+  /* Topbar icon buttons — slightly larger tap targets */
+  .topbar-icon-btn { width: 44px; height: 44px; }
+}
