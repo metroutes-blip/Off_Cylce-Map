@@ -5,15 +5,29 @@
 'use strict';
 
 // ── Version ───────────────────────────────────
-const APP_VERSION = 'v3.3';
+const APP_VERSION = 'v3.5';
 
 // ── Google Sheets published CSV URL ───────────
 // Dispatcher: File → Share → Publish to web → CSV → paste the URL here
 const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTmjcAZ6v2j5Lrs_XhyPovwduIdtVjfnQKr0bqOau-MSyW3nuePnfoHsFAU4-OJWxilBqxCL3DKe2AA/pub?gid=0&single=true&output=csv';
 
-// ── PIN lock ───────────────────────────────────
-const PIN_CODE = '4959';        // change to desired PIN
-const PIN_UNLOCK_KEY = 'wo_pin_date'; // localStorage key: today's date when unlocked
+// ── Engineer PINs ─────────────────────────────
+// Key: engineer name exactly as it appears in Google Sheets
+// Engineers not listed here are not required to enter a PIN
+const ENGINEER_PINS = {
+  'BORNEMAM': '6711',
+  'CRUISEM': '0499',
+  'ROTHD1': '4719',
+  'CHANA13': '4818',
+  'NASRJ': '4894',
+  'DUFFYJ': '5381',
+  'BRISSONJ': '4053',
+  'ROBINSC5': '6922',
+  'AGIUSA': '8770',
+  'FARRUGIM': '3100',
+
+};
+const PIN_UNLOCK_PREFIX = 'wo_pin_'; // localStorage: wo_pin_<engineer> = 'YYYY-MM-DD'
 
 // ── Storage keys ──────────────────────────────
 const RECORDS_KEY = 'wo_records';
@@ -40,6 +54,8 @@ let sheetJustOpened = false;    // guard: prevents same tap from immediately clo
 let dueTodayActive = false;
 let selectedEngineer = '';
 let pendingRecords = null;
+let pendingPinEngineer = '';
+let pendingPinCallback = null;
 let mapStyle = localStorage.getItem(MAP_STYLE_KEY) || 'auto';
 let darkMQ = null;
 
@@ -914,24 +930,13 @@ function showEngineerView() {
   });
 }
 
-function selectEngineer(name) {
-  selectedEngineer = name;
-  try { localStorage.setItem(ENGINEER_KEY, name); } catch (_) { }
-
-  // Narrow the saved records down to just this engineer's rows so the
-  // localStorage payload stays small regardless of how large the full CSV is.
-  const myJobs = workOrders.filter(r => (r['engineer'] || '').trim() === name);
-  try { localStorage.setItem(RECORDS_KEY, JSON.stringify(myJobs)); } catch (_) { }
-
-  viewEngineer.classList.add('hidden');
+function proceedToMap(myJobs) {
   showMapView();
   woCountBadge.textContent = `${myJobs.length} job${myJobs.length !== 1 ? 's' : ''}`;
-
   geocodeBar.classList.remove('hidden');
   geocodeBarFill.style.width = '0%';
   geocodeBarText.textContent = `Locating addresses… 0 / ${myJobs.length}`;
   notFoundBanner.classList.add('hidden');
-
   geocodeAllRecords((done, total) => {
     geocodeBarFill.style.width = Math.round((done / total) * 100) + '%';
     geocodeBarText.textContent = `Locating addresses… ${done} / ${total}`;
@@ -946,6 +951,24 @@ function selectEngineer(name) {
     updateNotFoundBar();
     if (failures.length) showToast(`${failures.length} address${failures.length > 1 ? 'es' : ''} could not be located`);
   });
+}
+
+function selectEngineer(name) {
+  selectedEngineer = name;
+  try { localStorage.setItem(ENGINEER_KEY, name); } catch (_) { }
+
+  // Narrow the saved records down to just this engineer's rows so the
+  // localStorage payload stays small regardless of how large the full CSV is.
+  const myJobs = workOrders.filter(r => (r['engineer'] || '').trim() === name);
+  try { localStorage.setItem(RECORDS_KEY, JSON.stringify(myJobs)); } catch (_) { }
+
+  viewEngineer.classList.add('hidden');
+
+  if (!isPinUnlocked(name)) {
+    showPinView(name, () => proceedToMap(myJobs));
+    return;
+  }
+  proceedToMap(myJobs);
 }
 
 // ── View switching ────────────────────────────
@@ -1087,12 +1110,15 @@ btnComplete.addEventListener('click', () => {
 });
 
 // ── PIN lock helpers ──────────────────────────
-function isPinUnlocked() {
+function isPinUnlocked(engineer) {
+  if (!(engineer in ENGINEER_PINS)) return true; // no PIN configured for this engineer
   const today = new Date().toLocaleDateString('en-CA'); // 'YYYY-MM-DD'
-  return localStorage.getItem(PIN_UNLOCK_KEY) === today;
+  return localStorage.getItem(PIN_UNLOCK_PREFIX + engineer) === today;
 }
 
-function showPinView() {
+function showPinView(engineer, onSuccess) {
+  pendingPinEngineer = engineer;
+  pendingPinCallback = onSuccess;
   viewHome.classList.add('hidden');
   viewEngineer.classList.add('hidden');
   viewMap.classList.add('hidden');
@@ -1103,12 +1129,13 @@ function showPinView() {
 }
 
 function attemptPinUnlock() {
-  if (pinInput.value === PIN_CODE) {
+  const expectedPin = ENGINEER_PINS[pendingPinEngineer] || '';
+  if (pinInput.value === expectedPin) {
     const today = new Date().toLocaleDateString('en-CA');
-    localStorage.setItem(PIN_UNLOCK_KEY, today);
+    localStorage.setItem(PIN_UNLOCK_PREFIX + pendingPinEngineer, today);
     viewPin.classList.add('hidden');
     pinError.classList.add('hidden');
-    bootContinue();
+    if (pendingPinCallback) pendingPinCallback();
   } else {
     pinError.classList.remove('hidden');
     pinInput.value = '';
@@ -1120,6 +1147,29 @@ btnPinUnlock.addEventListener('click', attemptPinUnlock);
 pinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptPinUnlock(); });
 
 // ── Boot ──────────────────────────────────────
+function restoreSession(savedEngineer) {
+  selectedEngineer = savedEngineer;
+  showMapView();
+  const myJobs = workOrders.filter(r => (r['engineer'] || '').trim() === savedEngineer);
+  woCountBadge.textContent = `${myJobs.length} job${myJobs.length !== 1 ? 's' : ''}`;
+  const savedPoints = loadPoints();
+  setTimeout(() => {
+    if (savedPoints.length) {
+      geocodedPoints = savedPoints;
+      placeMarkers(getFilteredPoints(), true);
+      updateBadge(); updateStatusBar(); updateNotFoundBar();
+    } else {
+      // No saved points (e.g. crash during geocoding) — re-geocode from cache
+      geocodeAllRecords(() => { }).then(({ points, failures }) => {
+        geocodedPoints = points; geocodeFailures = failures;
+        if (points.length) savePoints();
+        placeMarkers(getFilteredPoints(), true);
+        updateBadge(); updateStatusBar(); updateNotFoundBar();
+      });
+    }
+  }, 150);
+}
+
 function bootContinue() {
   // Always try Google Sheets first so engineers see fresh data every time
   fetchCSVFromSheets().then(csvText => {
@@ -1137,33 +1187,11 @@ function bootContinue() {
     const hasSession = tryRestoreSession();
 
     if (hasSession && savedEngineer) {
-      selectedEngineer = savedEngineer;
-      showMapView();
-      const myJobs = workOrders.filter(r => (r['engineer'] || '').trim() === savedEngineer);
-      woCountBadge.textContent = `${myJobs.length} job${myJobs.length !== 1 ? 's' : ''}`;
-
-      // Restore saved points — wait for Leaflet to size itself first
-      const savedPoints = loadPoints();
-      setTimeout(() => {
-        if (savedPoints.length) {
-          geocodedPoints = savedPoints;
-          placeMarkers(getFilteredPoints(), true);
-          updateBadge();
-          updateStatusBar();
-          updateNotFoundBar();
-        } else {
-          // No saved points (e.g. crash during geocoding) — re-geocode from cache
-          geocodeAllRecords(() => { }).then(({ points, failures }) => {
-            geocodedPoints = points;
-            geocodeFailures = failures;
-            if (points.length) savePoints();
-            placeMarkers(getFilteredPoints(), true);
-            updateBadge();
-            updateStatusBar();
-            updateNotFoundBar();
-          });
-        }
-      }, 150);
+      if (!isPinUnlocked(savedEngineer)) {
+        showPinView(savedEngineer, () => restoreSession(savedEngineer));
+        return;
+      }
+      restoreSession(savedEngineer);
     } else if (hasSession) {
       // CSV loaded but no engineer saved — show picker
       showEngineerView();
@@ -1181,11 +1209,6 @@ function boot() {
     splash.style.transition = 'opacity 0.4s';
     splash.style.opacity = '0';
     setTimeout(() => splash.remove(), 400);
-
-    if (!isPinUnlocked()) {
-      showPinView();
-      return; // PIN handler calls bootContinue() on success
-    }
     bootContinue();
   }, 4300);
 }
