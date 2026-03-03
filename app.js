@@ -5,7 +5,11 @@
 'use strict';
 
 // ── Version ───────────────────────────────────
-const APP_VERSION = 'v2.4';
+const APP_VERSION = 'v2.5';
+
+// ── Google Sheets published CSV URL ───────────
+// Dispatcher: File → Share → Publish to web → CSV → paste the URL here
+const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTmjcAZ6v2j5Lrs_XhyPovwduIdtVjfnQKr0bqOau-MSyW3nuePnfoHsFAU4-OJWxilBqxCL3DKe2AA/pub?gid=0&single=true&output=csv';
 
 // ── Storage keys ──────────────────────────────
 const RECORDS_KEY = 'wo_records';
@@ -162,6 +166,26 @@ function parseCSV(text) {
     });
     return obj;
   });
+}
+
+// ── Google Sheets CSV fetch ────────────────────
+async function fetchCSVFromSheets() {
+  if (!SHEETS_CSV_URL || SHEETS_CSV_URL.startsWith('PASTE_')) {
+    console.log('[Sheets] URL not configured — skipping fetch');
+    return null;
+  }
+  console.log('[Sheets] Fetching:', SHEETS_CSV_URL);
+  try {
+    const res = await fetch(SHEETS_CSV_URL, { cache: 'no-store' });
+    console.log('[Sheets] Response status:', res.status, res.ok);
+    if (!res.ok) return null;
+    const text = await res.text();
+    console.log('[Sheets] CSV length:', text.length, '— first 200 chars:', text.slice(0, 200));
+    return text;
+  } catch (err) {
+    console.error('[Sheets] Fetch error:', err);
+    return null;
+  }
 }
 
 // ── Completions persistence ───────────────────
@@ -992,7 +1016,18 @@ csvReloadInput.addEventListener('change', (e) => {
   e.target.value = '';
 });
 
-btnLoadNew.addEventListener('click', () => csvReloadInput.click());
+btnLoadNew.addEventListener('click', async () => {
+  const csvText = await fetchCSVFromSheets();
+  if (csvText) {
+    const records = parseCSV(csvText);
+    if (records.length && records[0].hasOwnProperty('Street Address')) {
+      showToast('Work orders reloaded from Google Sheets');
+      applyNewCSV(records, false);
+      return;
+    }
+  }
+  csvReloadInput.click(); // fall back to file picker
+});
 
 detailClose.addEventListener('click', closeDetailSheet);
 
@@ -1100,43 +1135,56 @@ function boot() {
     splash.style.opacity = '0';
     setTimeout(() => splash.remove(), 400);
 
-    const savedEngineer = localStorage.getItem(ENGINEER_KEY) || '';
-    const hasSession = tryRestoreSession();
+    // Always try Google Sheets first so engineers see fresh data every time
+    fetchCSVFromSheets().then(csvText => {
+      if (csvText) {
+        const records = parseCSV(csvText);
+        if (records.length && records[0].hasOwnProperty('Street Address')) {
+          showToast('Work orders loaded from Google Sheets');
+          applyNewCSV(records, false);
+          return;
+        }
+      }
 
-    if (hasSession && savedEngineer) {
-      selectedEngineer = savedEngineer;
-      showMapView();
-      const myJobs = workOrders.filter(r => (r['engineer'] || '').trim() === savedEngineer);
-      woCountBadge.textContent = `${myJobs.length} job${myJobs.length !== 1 ? 's' : ''}`;
+      // Sheets not configured or fetch failed — fall back to session restore
+      const savedEngineer = localStorage.getItem(ENGINEER_KEY) || '';
+      const hasSession = tryRestoreSession();
 
-      // Restore saved points — wait for Leaflet to size itself first
-      const savedPoints = loadPoints();
-      setTimeout(() => {
-        if (savedPoints.length) {
-          geocodedPoints = savedPoints;
-          placeMarkers(getFilteredPoints(), true);
-          updateBadge();
-          updateStatusBar();
-          updateNotFoundBar();
-        } else {
-          // No saved points (e.g. crash during geocoding) — re-geocode from cache
-          geocodeAllRecords(() => { }).then(({ points, failures }) => {
-            geocodedPoints = points;
-            geocodeFailures = failures;
-            if (points.length) savePoints();
+      if (hasSession && savedEngineer) {
+        selectedEngineer = savedEngineer;
+        showMapView();
+        const myJobs = workOrders.filter(r => (r['engineer'] || '').trim() === savedEngineer);
+        woCountBadge.textContent = `${myJobs.length} job${myJobs.length !== 1 ? 's' : ''}`;
+
+        // Restore saved points — wait for Leaflet to size itself first
+        const savedPoints = loadPoints();
+        setTimeout(() => {
+          if (savedPoints.length) {
+            geocodedPoints = savedPoints;
             placeMarkers(getFilteredPoints(), true);
             updateBadge();
             updateStatusBar();
             updateNotFoundBar();
-          });
-        }
-      }, 150);
-    } else if (hasSession) {
-      // CSV loaded but no engineer saved — show picker
-      showEngineerView();
-    } else {
-      showHomeView();
-    }
+          } else {
+            // No saved points (e.g. crash during geocoding) — re-geocode from cache
+            geocodeAllRecords(() => { }).then(({ points, failures }) => {
+              geocodedPoints = points;
+              geocodeFailures = failures;
+              if (points.length) savePoints();
+              placeMarkers(getFilteredPoints(), true);
+              updateBadge();
+              updateStatusBar();
+              updateNotFoundBar();
+            });
+          }
+        }, 150);
+      } else if (hasSession) {
+        // CSV loaded but no engineer saved — show picker
+        showEngineerView();
+      } else {
+        showHomeView();
+      }
+    });
   }, 4300);
 }
 

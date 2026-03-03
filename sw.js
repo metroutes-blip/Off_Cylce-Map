@@ -1,6 +1,6 @@
 /* Service Worker — Work Order Map PWA — Enables offline use after first load */
 
-const CACHE_NAME = 'wo-map-v2.4';
+const CACHE_NAME = 'wo-map-v2.5';
 const CACHE_FILES = [
   './',
   './index.html',
@@ -28,7 +28,13 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Cache-first: serve from cache, fall back to network
+  // Always hit the network for API and admin routes (need fresh data)
+  const url = new URL(e.request.url);
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/admin')) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
+  // Cache-first for all other assets (offline support)
   e.respondWith(
     caches.match(e.request).then((cached) => cached || fetch(e.request))
   );
