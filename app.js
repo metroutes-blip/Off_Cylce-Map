@@ -5,7 +5,7 @@
 'use strict';
 
 // ── Version ───────────────────────────────────
-const APP_VERSION = 'v3.5';
+const APP_VERSION = 'v3.6';
 
 // ── Google Sheets published CSV URL ───────────
 // Dispatcher: File → Share → Publish to web → CSV → paste the URL here
@@ -25,7 +25,15 @@ const ENGINEER_PINS = {
   'ROBINSC5': '6922',
   'AGIUSA': '8770',
   'FARRUGIM': '3100',
-
+  'MCNEILK': '1856',
+  'HASTIEM': '8272',
+  'SEWELLG2': '1868',
+  'CONEJ': '6336',
+  'PLATTB': '3784',
+  'DOWS1': '9850',
+  'DAWSONJ2': '7004',
+  'DAWSONS': '6276',
+  'GRANDMAK': '0760',
 };
 const PIN_UNLOCK_PREFIX = 'wo_pin_'; // localStorage: wo_pin_<engineer> = 'YYYY-MM-DD'
 
