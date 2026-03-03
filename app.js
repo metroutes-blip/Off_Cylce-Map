@@ -5,15 +5,11 @@
 'use strict';
 
 // ── Version ───────────────────────────────────
-const APP_VERSION = 'v3.1';
+const APP_VERSION = 'v3.3';
 
 // ── Google Sheets published CSV URL ───────────
 // Dispatcher: File → Share → Publish to web → CSV → paste the URL here
 const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTmjcAZ6v2j5Lrs_XhyPovwduIdtVjfnQKr0bqOau-MSyW3nuePnfoHsFAU4-OJWxilBqxCL3DKe2AA/pub?gid=0&single=true&output=csv';
-
-// ── Active work order statuses ─────────────────
-// Only work orders with one of these statuses will appear on the map
-const ACTIVE_STATUSES = new Set(['WSCH', 'ACK', 'ENROUTE', 'ONSITE', 'DISP']);
 
 // ── PIN lock ───────────────────────────────────
 const PIN_CODE = '4959';        // change to desired PIN
@@ -847,8 +843,6 @@ function buildEngineerFilter() {
 function getFilteredPoints() {
   const eng = engineerFilterSel.value;
   return geocodedPoints.filter(p => {
-    const status = (p.row['workstatus'] || '').trim().toUpperCase();
-    if (!ACTIVE_STATUSES.has(status)) return false;
     if (eng && (p.row['engineer'] || '').trim() !== eng) return false;
     if (dueTodayActive && !isDueToday(p.row)) return false;
     return true;
