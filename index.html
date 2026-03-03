@@ -24,7 +24,25 @@
     </div>
   </div>
 
-  <!-- ── Home view (no CSV loaded) ─────────────── -->
+  <!-- ── PIN lock ─────────────────────────────────── -->
+  <div id="view-pin" class="view hidden">
+    <div class="home-header">
+      <img src="../pwa-meter-reader/met-logo.jpg" alt="MET" class="home-logo" />
+      <h1 class="home-title">Work Order Map</h1>
+      <p class="home-sub">M.E.T. Utilities Management Ltd.</p>
+    </div>
+    <div class="home-body">
+      <div class="pin-entry">
+        <input type="password" id="pin-input" inputmode="numeric"
+               pattern="[0-9]*" maxlength="10"
+               placeholder="Enter PIN" autocomplete="off" />
+        <button id="btn-pin-unlock" class="upload-btn">Unlock</button>
+        <p id="pin-error" class="pin-error hidden">Incorrect PIN — try again.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Home view (connection failed) ─────────────── -->
   <div id="view-home" class="view hidden">
     <div class="home-header">
       <img src="../pwa-meter-reader/met-logo.jpg" alt="MET" class="home-logo" />
@@ -32,17 +50,8 @@
       <p class="home-sub">M.E.T. Utilities Management Ltd.</p>
     </div>
     <div class="home-body">
-      <label class="upload-btn" for="csv-file-input">
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
-             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-        Load CSV File
-      </label>
-      <input type="file" id="csv-file-input" accept=".csv" hidden />
-      <p class="upload-hint">Open your emailed work order CSV to map job locations</p>
+      <p class="upload-hint">Could not load work orders.<br>Check your internet connection.</p>
+      <button id="btn-retry" class="upload-btn">Retry</button>
     </div>
   </div>
 
@@ -55,15 +64,6 @@
     </div>
     <div class="home-body">
       <div id="engineer-list" class="engineer-list"></div>
-      <label class="upload-btn upload-btn-secondary" for="csv-file-input">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-        Load Different CSV
-      </label>
     </div>
   </div>
 
@@ -95,10 +95,7 @@
     <!-- Leaflet map -->
     <div id="map-container"></div>
 
-    <!-- Hidden file input for reload -->
-    <input type="file" id="csv-reload-input" accept=".csv" hidden />
-
-    <!-- Load CSV button (bottom-left) -->
+    <!-- Refresh work orders button (bottom-left) -->
     <button id="btn-load-new" class="btn-load-new-fixed" title="Load new CSV">
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
            fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">

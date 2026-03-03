@@ -854,6 +854,39 @@ html, body {
 
 .toast.fade-out { opacity: 0; }
 
+/* ─── PIN entry ──────────────────────────────── */
+.pin-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 280px;
+  margin: 0 auto;
+}
+
+#pin-input {
+  width: 100%;
+  padding: 14px 18px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 14px;
+  color: #e8edf5;
+  font-size: 22px;
+  letter-spacing: 0.3em;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+#pin-input:focus { border-color: #2563eb; }
+
+.pin-error {
+  font-size: 13px;
+  color: #fca5a5;
+  margin: 0;
+}
+
 /* ─── Tablet (≥ 768px) ───────────────────────── */
 @media (min-width: 768px) {
 

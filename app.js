@@ -5,11 +5,15 @@
 'use strict';
 
 // ── Version ───────────────────────────────────
-const APP_VERSION = 'v2.5';
+const APP_VERSION = 'v3.0';
 
 // ── Google Sheets published CSV URL ───────────
 // Dispatcher: File → Share → Publish to web → CSV → paste the URL here
 const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTmjcAZ6v2j5Lrs_XhyPovwduIdtVjfnQKr0bqOau-MSyW3nuePnfoHsFAU4-OJWxilBqxCL3DKe2AA/pub?gid=0&single=true&output=csv';
+
+// ── PIN lock ───────────────────────────────────
+const PIN_CODE = '4959';        // change to desired PIN
+const PIN_UNLOCK_KEY = 'wo_pin_date'; // localStorage key: today's date when unlocked
 
 // ── Storage keys ──────────────────────────────
 const RECORDS_KEY = 'wo_records';
@@ -43,8 +47,11 @@ let darkMQ = null;
 const splash = document.getElementById('splash');
 const viewHome = document.getElementById('view-home');
 const viewMap = document.getElementById('view-map');
-const csvFileInput = document.getElementById('csv-file-input');
-const csvReloadInput = document.getElementById('csv-reload-input');
+const viewPin = document.getElementById('view-pin');
+const pinInput = document.getElementById('pin-input');
+const btnPinUnlock = document.getElementById('btn-pin-unlock');
+const pinError = document.getElementById('pin-error');
+const btnRetry = document.getElementById('btn-retry');
 const btnLoadNew = document.getElementById('btn-load-new');
 const woCountBadge = document.getElementById('wo-count-badge');
 const geocodeBar = document.getElementById('geocode-bar');
@@ -170,20 +177,12 @@ function parseCSV(text) {
 
 // ── Google Sheets CSV fetch ────────────────────
 async function fetchCSVFromSheets() {
-  if (!SHEETS_CSV_URL || SHEETS_CSV_URL.startsWith('PASTE_')) {
-    console.log('[Sheets] URL not configured — skipping fetch');
-    return null;
-  }
-  console.log('[Sheets] Fetching:', SHEETS_CSV_URL);
+  if (!SHEETS_CSV_URL || SHEETS_CSV_URL.startsWith('PASTE_')) return null;
   try {
     const res = await fetch(SHEETS_CSV_URL, { cache: 'no-store' });
-    console.log('[Sheets] Response status:', res.status, res.ok);
     if (!res.ok) return null;
-    const text = await res.text();
-    console.log('[Sheets] CSV length:', text.length, '— first 200 chars:', text.slice(0, 200));
-    return text;
-  } catch (err) {
-    console.error('[Sheets] Fetch error:', err);
+    return await res.text();
+  } catch (_) {
     return null;
   }
 }
@@ -894,39 +893,11 @@ function applyNewCSV(records, keepPrev) {
   showEngineerView();
 }
 
-function loadCSV(file) {
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    const records = parseCSV(ev.target.result);
-    if (!records.length || !records[0].hasOwnProperty('Street Address')) {
-      showToast('Not a valid work order CSV — missing "Street Address" column', true);
-      return;
-    }
-
-    // If there are incomplete work orders from a previous session, offer to keep them
-    if (workOrders.length && selectedEngineer) {
-      const prevIncomplete = workOrders.filter(r => {
-        const wo = (r['Workorder'] || '').trim();
-        return (r['engineer'] || '').trim() === selectedEngineer && wo && !completions[wo];
-      });
-      if (prevIncomplete.length) {
-        pendingRecords = records;
-        mergeModalDesc.textContent =
-          `You have ${prevIncomplete.length} incomplete work order${prevIncomplete.length !== 1 ? 's' : ''} from your previous session. Keep them alongside the new file?`;
-        mergeModal.classList.remove('hidden');
-        return;
-      }
-    }
-
-    applyNewCSV(records, false);
-  };
-  reader.readAsText(file);
-}
-
 // ── Engineer picker ───────────────────────────
 function showEngineerView() {
   viewHome.classList.add('hidden');
   viewMap.classList.add('hidden');
+  viewPin.classList.add('hidden');
   viewEngineer.classList.remove('hidden');
 
   const names = [...new Set(
@@ -980,6 +951,7 @@ function selectEngineer(name) {
 // ── View switching ────────────────────────────
 function showMapView() {
   viewHome.classList.add('hidden');
+  viewPin.classList.add('hidden');
   viewMap.classList.remove('hidden');
   initLeafletMap();
   // Fix Leaflet size after view switch
@@ -988,6 +960,7 @@ function showMapView() {
 
 function showHomeView() {
   viewMap.classList.add('hidden');
+  viewPin.classList.add('hidden');
   viewHome.classList.remove('hidden');
 }
 
@@ -1004,18 +977,6 @@ function tryRestoreSession() {
 }
 
 // ── Event listeners ───────────────────────────
-csvFileInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (file) loadCSV(file);
-  e.target.value = '';
-});
-
-csvReloadInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (file) loadCSV(file);
-  e.target.value = '';
-});
-
 btnLoadNew.addEventListener('click', async () => {
   const csvText = await fetchCSVFromSheets();
   if (csvText) {
@@ -1026,7 +987,7 @@ btnLoadNew.addEventListener('click', async () => {
       return;
     }
   }
-  csvReloadInput.click(); // fall back to file picker
+  showToast('Could not reach Google Sheets — check your connection', true);
 });
 
 detailClose.addEventListener('click', closeDetailSheet);
@@ -1125,7 +1086,93 @@ btnComplete.addEventListener('click', () => {
   updateStatusBar();
 });
 
+// ── PIN lock helpers ──────────────────────────
+function isPinUnlocked() {
+  const today = new Date().toLocaleDateString('en-CA'); // 'YYYY-MM-DD'
+  return localStorage.getItem(PIN_UNLOCK_KEY) === today;
+}
+
+function showPinView() {
+  viewHome.classList.add('hidden');
+  viewEngineer.classList.add('hidden');
+  viewMap.classList.add('hidden');
+  viewPin.classList.remove('hidden');
+  pinInput.value = '';
+  pinError.classList.add('hidden');
+  setTimeout(() => pinInput.focus(), 100);
+}
+
+function attemptPinUnlock() {
+  if (pinInput.value === PIN_CODE) {
+    const today = new Date().toLocaleDateString('en-CA');
+    localStorage.setItem(PIN_UNLOCK_KEY, today);
+    viewPin.classList.add('hidden');
+    pinError.classList.add('hidden');
+    bootContinue();
+  } else {
+    pinError.classList.remove('hidden');
+    pinInput.value = '';
+    pinInput.focus();
+  }
+}
+
+btnPinUnlock.addEventListener('click', attemptPinUnlock);
+pinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptPinUnlock(); });
+
 // ── Boot ──────────────────────────────────────
+function bootContinue() {
+  // Always try Google Sheets first so engineers see fresh data every time
+  fetchCSVFromSheets().then(csvText => {
+    if (csvText) {
+      const records = parseCSV(csvText);
+      if (records.length && records[0].hasOwnProperty('Street Address')) {
+        showToast('Work orders loaded from Google Sheets');
+        applyNewCSV(records, false);
+        return;
+      }
+    }
+
+    // Sheets not configured or fetch failed — fall back to session restore
+    const savedEngineer = localStorage.getItem(ENGINEER_KEY) || '';
+    const hasSession = tryRestoreSession();
+
+    if (hasSession && savedEngineer) {
+      selectedEngineer = savedEngineer;
+      showMapView();
+      const myJobs = workOrders.filter(r => (r['engineer'] || '').trim() === savedEngineer);
+      woCountBadge.textContent = `${myJobs.length} job${myJobs.length !== 1 ? 's' : ''}`;
+
+      // Restore saved points — wait for Leaflet to size itself first
+      const savedPoints = loadPoints();
+      setTimeout(() => {
+        if (savedPoints.length) {
+          geocodedPoints = savedPoints;
+          placeMarkers(getFilteredPoints(), true);
+          updateBadge();
+          updateStatusBar();
+          updateNotFoundBar();
+        } else {
+          // No saved points (e.g. crash during geocoding) — re-geocode from cache
+          geocodeAllRecords(() => { }).then(({ points, failures }) => {
+            geocodedPoints = points;
+            geocodeFailures = failures;
+            if (points.length) savePoints();
+            placeMarkers(getFilteredPoints(), true);
+            updateBadge();
+            updateStatusBar();
+            updateNotFoundBar();
+          });
+        }
+      }, 150);
+    } else if (hasSession) {
+      // CSV loaded but no engineer saved — show picker
+      showEngineerView();
+    } else {
+      showHomeView();
+    }
+  });
+}
+
 function boot() {
   completions = loadCompletions();
 
@@ -1135,58 +1182,18 @@ function boot() {
     splash.style.opacity = '0';
     setTimeout(() => splash.remove(), 400);
 
-    // Always try Google Sheets first so engineers see fresh data every time
-    fetchCSVFromSheets().then(csvText => {
-      if (csvText) {
-        const records = parseCSV(csvText);
-        if (records.length && records[0].hasOwnProperty('Street Address')) {
-          showToast('Work orders loaded from Google Sheets');
-          applyNewCSV(records, false);
-          return;
-        }
-      }
-
-      // Sheets not configured or fetch failed — fall back to session restore
-      const savedEngineer = localStorage.getItem(ENGINEER_KEY) || '';
-      const hasSession = tryRestoreSession();
-
-      if (hasSession && savedEngineer) {
-        selectedEngineer = savedEngineer;
-        showMapView();
-        const myJobs = workOrders.filter(r => (r['engineer'] || '').trim() === savedEngineer);
-        woCountBadge.textContent = `${myJobs.length} job${myJobs.length !== 1 ? 's' : ''}`;
-
-        // Restore saved points — wait for Leaflet to size itself first
-        const savedPoints = loadPoints();
-        setTimeout(() => {
-          if (savedPoints.length) {
-            geocodedPoints = savedPoints;
-            placeMarkers(getFilteredPoints(), true);
-            updateBadge();
-            updateStatusBar();
-            updateNotFoundBar();
-          } else {
-            // No saved points (e.g. crash during geocoding) — re-geocode from cache
-            geocodeAllRecords(() => { }).then(({ points, failures }) => {
-              geocodedPoints = points;
-              geocodeFailures = failures;
-              if (points.length) savePoints();
-              placeMarkers(getFilteredPoints(), true);
-              updateBadge();
-              updateStatusBar();
-              updateNotFoundBar();
-            });
-          }
-        }, 150);
-      } else if (hasSession) {
-        // CSV loaded but no engineer saved — show picker
-        showEngineerView();
-      } else {
-        showHomeView();
-      }
-    });
+    if (!isPinUnlocked()) {
+      showPinView();
+      return; // PIN handler calls bootContinue() on success
+    }
+    bootContinue();
   }, 4300);
 }
+
+btnRetry.addEventListener('click', () => {
+  viewHome.classList.add('hidden');
+  bootContinue();
+});
 
 boot();
 
