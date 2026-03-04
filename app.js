@@ -5,7 +5,7 @@
 'use strict';
 
 // ── Version ───────────────────────────────────
-const APP_VERSION = 'v3.6';
+const APP_VERSION = 'v3.7';
 
 // ── Google Sheets published CSV URL ───────────
 // Dispatcher: File → Share → Publish to web → CSV → paste the URL here
@@ -396,7 +396,7 @@ function isDueToday(row) {
   if (isRedLock(row)) return isLockEndToday(row);
   if (isTamper(row)) return true;                    // TC01
   if (isBlackLock(row)) return true;                    // LKFS, TLOC, LOCK
-  if (isSpecialRead(row)) return isAptToday(row);        // MT31, ESTS, CKRD — only if aptstart = today
+  if (isSpecialRead(row)) return !!(row['aptstart'] || '').trim();  // MT31, ESTS, CKRD — any aptstart date
   return false;
 }
 
