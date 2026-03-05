@@ -237,8 +237,10 @@ html, body {
 }
 
 .map-topbar-left,
+.map-topbar-center,
 .map-topbar-right {
   pointer-events: all;
+  flex: 1;
 }
 
 .map-topbar-left {
@@ -247,9 +249,21 @@ html, body {
   gap: 8px;
 }
 
+.map-topbar-center {
+  display: flex;
+  justify-content: center;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+#btn-refresh.is-loading #refresh-icon {
+  animation: spin 0.8s linear infinite;
+}
+
 /* ─── Liquid glass base ──────────────────────── */
 .glass {
-  background: rgba(30, 40, 60, 0.45);
+  background: rgba(30, 40, 60, 0.25);
   backdrop-filter: blur(14px) saturate(160%);
   -webkit-backdrop-filter: blur(14px) saturate(160%);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -257,7 +271,7 @@ html, body {
 }
 
 .engineer-filter-select {
-  background: rgba(30, 40, 60, 0.45);
+  background: rgba(30, 40, 60, 0.25);
   backdrop-filter: blur(14px) saturate(160%);
   -webkit-backdrop-filter: blur(14px) saturate(160%);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -273,7 +287,7 @@ html, body {
 }
 
 .wo-count-badge {
-  background: rgba(30, 40, 60, 0.45);
+  background: rgba(30, 40, 60, 0.25);
   backdrop-filter: blur(14px) saturate(160%);
   -webkit-backdrop-filter: blur(14px) saturate(160%);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -286,7 +300,7 @@ html, body {
 }
 
 .topbar-icon-btn {
-  background: rgba(30, 40, 60, 0.45);
+  background: rgba(30, 40, 60, 0.25);
   backdrop-filter: blur(14px) saturate(160%);
   -webkit-backdrop-filter: blur(14px) saturate(160%);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -380,6 +394,24 @@ html, body {
   color: var(--text-dark);
   box-shadow: 0 1px 5px rgba(0,0,0,0.4);
 }
+
+/* ─── Address labels (permanent tooltips) ───── */
+.address-label {
+  background: rgba(20, 30, 50, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.address-label::before { display: none; } /* remove Leaflet tooltip arrow */
+.hide-labels .address-label { display: none; }
 
 /* Map popup link */
 .popup-nav-link {
@@ -487,6 +519,32 @@ html, body {
   cursor: pointer;
   flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
+}
+
+#detail-group-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  padding: 6px 16px;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+}
+#detail-group-nav button {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  padding: 4px 10px;
+  cursor: pointer;
+  color: #3b82f6;
+  border-radius: 4px;
+  -webkit-tap-highlight-color: transparent;
+}
+#detail-group-nav button:active {
+  background: #dbeafe;
 }
 
 .detail-body {
@@ -637,6 +695,26 @@ html, body {
   font-family: inherit;
 }
 
+.add-address-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  outline: none;
+  margin-bottom: 6px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+.add-address-input:focus { border-color: #2563eb; }
+
+.add-address-status {
+  font-size: 0.8rem;
+  color: #dc2626;
+  margin-bottom: 6px;
+}
+
 .geocode-fix-btn {
   background: var(--accent);
   color: #fff;
@@ -745,13 +823,39 @@ html, body {
   opacity: 0.55;
 }
 
+/* ─── Label toggle button (fixed bottom-left) ── */
+.btn-labels-fixed {
+  position: fixed;
+  bottom: 98px;
+  left: 16px;
+  z-index: 600;
+  background: rgba(30, 40, 60, 0.25);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255,255,255,0.12);
+  color: #fff;
+  border-radius: 10px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-labels-fixed.active {
+  background: rgba(59, 130, 246, 0.65);
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
 /* ─── Load CSV button (fixed bottom-left) ───── */
 .btn-load-new-fixed {
   position: fixed;
   bottom: 46px;
   left: 16px;
   z-index: 600;
-  background: rgba(30, 40, 60, 0.45);
+  background: rgba(30, 40, 60, 0.25);
   backdrop-filter: blur(14px) saturate(160%);
   -webkit-backdrop-filter: blur(14px) saturate(160%);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -806,6 +910,7 @@ html, body {
   border-color: rgba(245, 158, 11, 0.5);
   color: #fff;
 }
+
 
 /* ─── Complete button ────────────────────────── */
 .complete-btn {
@@ -868,12 +973,12 @@ html, body {
 #pin-input {
   width: 100%;
   padding: 14px 18px;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.18);
+  background: #fff;
+  border: 1.5px solid #cbd5e1;
   border-radius: 14px;
-  color: #e8edf5;
-  font-size: 22px;
-  letter-spacing: 0.3em;
+  color: #1a2438;
+  font-size: 28px;
+  letter-spacing: 0.4em;
   text-align: center;
   outline: none;
   transition: border-color 0.2s;

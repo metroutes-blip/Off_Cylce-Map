@@ -5,7 +5,7 @@
 'use strict';
 
 // ── Version ───────────────────────────────────
-const APP_VERSION = 'v3.7';
+const APP_VERSION = 'v3.8';
 
 // ── Google Sheets published CSV URL ───────────
 // Dispatcher: File → Share → Publish to web → CSV → paste the URL here
@@ -58,8 +58,11 @@ let userLocationMarker = null;
 let gpsWatching = false;
 let gpsAutoStopTimer = null;
 let activeRow = null;     // row shown in detail sheet
+let activeGroup = [];     // all WOs at the same location as activeRow
+let activeGroupIndex = 0;
 let sheetJustOpened = false;    // guard: prevents same tap from immediately closing the sheet
 let dueTodayActive = false;
+let showLabels = true;
 let selectedEngineer = '';
 let pendingRecords = null;
 let pendingPinEngineer = '';
@@ -108,6 +111,18 @@ const geocodeFixList = document.getElementById('geocode-fix-list');
 const geocodeFixClose = document.getElementById('geocode-fix-close');
 const engineerFilterSel = document.getElementById('engineer-filter');
 const btnDueToday = document.getElementById('btn-due-today');
+const btnRefresh = document.getElementById('btn-refresh');
+const btnLabels = document.getElementById('btn-labels');
+const btnAddAddress = document.getElementById('btn-add-address');
+const addAddressModal = document.getElementById('add-address-modal');
+const addAddressInput = document.getElementById('add-address-input');
+const addAddressStatus = document.getElementById('add-address-status');
+const btnAddAddrSubmit = document.getElementById('btn-add-address-submit');
+const btnAddAddrCancel = document.getElementById('btn-add-address-cancel');
+const detailGroupNav = document.getElementById('detail-group-nav');
+const detailGroupLabel = document.getElementById('detail-group-label');
+const btnDetailPrev = document.getElementById('detail-prev');
+const btnDetailNext = document.getElementById('detail-next');
 const toast = document.getElementById('toast');
 const btnComplete = document.getElementById('btn-complete');
 const overdueWarning = document.getElementById('detail-overdue-warning');
@@ -487,6 +502,7 @@ function makeBaseMarkerIcon(row) {
 }
 
 function makeMarkerIcon(row) {
+  if (row._isCustom) return makeCircleIcon('#7c3aed');
   if (completions[row['Workorder'] || '']) return makeCircleIcon('#d1d5db');
   return makeBaseMarkerIcon(row);
 }
@@ -629,10 +645,19 @@ function placeMarkers(points, zoomToFit = true) {
       .addTo(leafletMap)
       .bindPopup(popup, { autoClose: false, closeOnClick: false });
 
+    if (addr) {
+      marker.bindTooltip(addr, {
+        permanent: true, direction: 'bottom', className: 'address-label', offset: [0, 4],
+      });
+    }
+
     marker.on('click', (e) => {
       L.DomEvent.stopPropagation(e);
       if (e.originalEvent) e.originalEvent.stopPropagation();
       marker.closePopup();
+      activeGroup = geocodedPoints.filter(p => p.lat === lat && p.lng === lng);
+      activeGroupIndex = activeGroup.findIndex(p => p.row === row);
+      if (activeGroupIndex < 0) activeGroupIndex = 0;
       openDetailSheet(row, lat, lng);
     });
 
@@ -694,6 +719,13 @@ function openDetailSheet(row, lat, lng) {
   clearTimeout(openDetailSheet._guard);
   openDetailSheet._guard = setTimeout(() => { sheetJustOpened = false; }, 600);
   activeRow = row;
+
+  if (activeGroup.length > 1) {
+    detailGroupLabel.textContent = `${activeGroupIndex + 1} of ${activeGroup.length}`;
+    detailGroupNav.classList.remove('hidden');
+  } else {
+    detailGroupNav.classList.add('hidden');
+  }
 
   const notifType = (row['Notification Type'] || '').trim();
   detailNotifChip.textContent = notifType || '—';
@@ -758,6 +790,15 @@ function openDetailSheet(row, lat, lng) {
     btnComplete.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
       fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
       <polyline points="20 6 9 17 4 12"/></svg> Complete`;
+  }
+
+  if (row._isCustom) {
+    detailNotifChip.textContent = 'Custom';
+    detailNotifChip.className = 'notif-chip chip-default';
+    detailWoNum.textContent = 'Added Address';
+    btnComplete.classList.add('hidden');
+  } else {
+    btnComplete.classList.remove('hidden');
   }
 
   if (isRedLock(row) && isLockEndPast(row)) {
@@ -1008,8 +1049,10 @@ function tryRestoreSession() {
 }
 
 // ── Event listeners ───────────────────────────
-btnLoadNew.addEventListener('click', async () => {
+async function reloadFromSheets() {
+  btnRefresh.classList.add('is-loading');
   const csvText = await fetchCSVFromSheets();
+  btnRefresh.classList.remove('is-loading');
   if (csvText) {
     const records = parseCSV(csvText);
     if (records.length && records[0].hasOwnProperty('Street Address')) {
@@ -1019,7 +1062,10 @@ btnLoadNew.addEventListener('click', async () => {
     }
   }
   showToast('Could not reach Google Sheets — check your connection', true);
-});
+}
+
+btnLoadNew.addEventListener('click', reloadFromSheets);
+btnRefresh.addEventListener('click', reloadFromSheets);
 
 detailClose.addEventListener('click', closeDetailSheet);
 
@@ -1035,6 +1081,73 @@ engineerFilterSel.addEventListener('change', () => {
   placeMarkers(getFilteredPoints(), false);
   updateBadge();
   updateStatusBar();
+});
+
+btnAddAddress.addEventListener('click', () => {
+  addAddressInput.value = '';
+  addAddressStatus.classList.add('hidden');
+  addAddressModal.classList.remove('hidden');
+  addAddressInput.focus();
+});
+
+btnAddAddrCancel.addEventListener('click', () => {
+  addAddressModal.classList.add('hidden');
+});
+
+btnAddAddrSubmit.addEventListener('click', async () => {
+  const q = addAddressInput.value.trim();
+  if (!q) return;
+  btnAddAddrSubmit.disabled = true;
+  btnAddAddrSubmit.textContent = '…';
+  addAddressStatus.classList.add('hidden');
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=ca`,
+      { headers: { 'User-Agent': 'WorkOrderMapPWA/1.0' } }
+    );
+    const data = await res.json();
+    if (data && data[0]) {
+      const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      const row = { 'Street Address': q, _isCustom: true };
+      geocodedPoints.push({ lat: coords.lat, lng: coords.lng, row });
+      addSingleMarker(coords, row);
+      leafletMap.setView([coords.lat, coords.lng], Math.max(leafletMap.getZoom(), 15));
+      addAddressModal.classList.add('hidden');
+      showToast('Address added to map');
+    } else {
+      addAddressStatus.textContent = 'Address not found — try a more specific query';
+      addAddressStatus.classList.remove('hidden');
+    }
+  } catch (_) {
+    addAddressStatus.textContent = 'Network error — try again';
+    addAddressStatus.classList.remove('hidden');
+  }
+  btnAddAddrSubmit.disabled = false;
+  btnAddAddrSubmit.textContent = 'Add to Map';
+});
+
+addAddressInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') btnAddAddrSubmit.click();
+});
+
+btnLabels.addEventListener('click', () => {
+  showLabels = !showLabels;
+  btnLabels.classList.toggle('active', showLabels);
+  document.getElementById('map-container').classList.toggle('hide-labels', !showLabels);
+});
+
+btnDetailPrev.addEventListener('click', () => {
+  if (activeGroup.length < 2) return;
+  activeGroupIndex = (activeGroupIndex - 1 + activeGroup.length) % activeGroup.length;
+  const { lat, lng, row } = activeGroup[activeGroupIndex];
+  openDetailSheet(row, lat, lng);
+});
+
+btnDetailNext.addEventListener('click', () => {
+  if (activeGroup.length < 2) return;
+  activeGroupIndex = (activeGroupIndex + 1) % activeGroup.length;
+  const { lat, lng, row } = activeGroup[activeGroupIndex];
+  openDetailSheet(row, lat, lng);
 });
 
 btnDueToday.addEventListener('click', () => {
