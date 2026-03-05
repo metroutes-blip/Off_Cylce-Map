@@ -5,7 +5,7 @@
 'use strict';
 
 // ── Version ───────────────────────────────────
-const APP_VERSION = 'v3.8';
+const APP_VERSION = 'v3.9';
 
 // ── Google Sheets published CSV URL ───────────
 // Dispatcher: File → Share → Publish to web → CSV → paste the URL here
@@ -248,6 +248,13 @@ function savePoints() {
 }
 function loadPoints() {
   try { return JSON.parse(localStorage.getItem(POINTS_KEY) || '[]'); } catch (_) { return []; }
+}
+
+// Strip trailing city name from a street address string for display
+function stripCityFromAddr(addr, city) {
+  if (!city) return addr;
+  const escaped = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return addr.replace(new RegExp(',?\\s*' + escaped + '\\s*$', 'i'), '').trim();
 }
 
 // ── Address cleaning for geocoding ───────────
@@ -646,7 +653,8 @@ function placeMarkers(points, zoomToFit = true) {
       .bindPopup(popup, { autoClose: false, closeOnClick: false });
 
     if (addr) {
-      marker.bindTooltip(addr, {
+      const city = (row['City'] || '').trim();
+      marker.bindTooltip(stripCityFromAddr(addr, city), {
         permanent: true, direction: 'bottom', className: 'address-label', offset: [0, 4],
       });
     }
